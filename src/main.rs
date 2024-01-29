@@ -13,6 +13,7 @@ struct HaskellRuntime {}
 
 impl HaskellRuntime {
     fn new() {
+        // XXX: incorrect
         let args = std::ptr::null();
         unsafe { hs_init(0, args) }
     }
