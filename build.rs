@@ -19,6 +19,9 @@ fn main() -> Result<(), StdError> {
     let ghc_version = cmd("ghc", &["--numeric-version"])?;
     let ghc_libdir = cmd("ghc", &["--print-libdir"])?;
 
+    let static_link = false; // TODO: broken, need to link to base etc. from libdir
+    let link_type = if static_link { "static" } else { "dylib" };
+
     let project_name = "rust-haskell-ffi";
     let project_version = "0.1.0.0";
 
@@ -29,15 +32,24 @@ fn main() -> Result<(), StdError> {
     println!("cargo:rustc-link-search=native={}", build_directory);
 
     println!(
-        "cargo:rustc-link-lib={}",
-        format!("HSrts-ghc{}", ghc_version)
+        "cargo:rustc-link-lib={link_type}={}",
+        if static_link {
+            "HSrts".to_string()
+        } else {
+            format!("HSrts-ghc{}", ghc_version)
+        }
     );
+
     println!(
-        "cargo:rustc-link-lib={}",
-        format!(
-            "HS{}-{}-inplace-ghc{}",
-            project_name, project_version, ghc_version
-        )
+        "cargo:rustc-link-lib={link_type}={}",
+        if static_link {
+            format!("HS{}-{}-inplace", project_name, project_version)
+        } else {
+            format!(
+                "HS{}-{}-inplace-ghc{}",
+                project_name, project_version, ghc_version
+            )
+        }
     );
 
     Ok(())
