@@ -21,13 +21,12 @@
         pkgs = import nixpkgs {
           inherit system;
         };
-
-        mkShell = pkgs.callPackage clean-devshell.lib.mkDevShell { };
       in
       rec {
-        devShell = mkShell {
-          packages = [
+        devShell = pkgs.mkShell {
+          buildInputs = [
             pkgs.cabal-install
+            pkgs.cargo
             pkgs.ghc
           ];
         };
