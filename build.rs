@@ -148,13 +148,14 @@ fn link_haskell_project<P: AsRef<Path>>(project_path: P, statically: bool) -> Re
     }
 
     // Configure linker to look for Haskell library
-    println!(
-        "cargo:rustc-link-search=native={}",
-        build_directory
-            .to_str()
-            .expect("build directory to be valid string")
-    );
+    let build_directory_str = build_directory
+        .to_str()
+        .expect("build directory to be valid string");
+    println!("cargo:rustc-link-search=native={build_directory_str}");
     println!("cargo:rustc-link-lib={link_type}={}", lib_name(&project_id));
+    if !statically {
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{build_directory_str}");
+    }
 
     Ok(())
 }
