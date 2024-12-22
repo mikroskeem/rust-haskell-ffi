@@ -1,3 +1,4 @@
+use std::env;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -112,7 +113,7 @@ fn link_haskell_project<P: AsRef<Path>>(project_path: P, statically: bool) -> Re
 
     // Configure linker to look for Haskell runtime
     let ghc_version = cmd(&compiler_id, &["--numeric-version"])?;
-    let ghc_libdir = cmd(&compiler_id, &["--print-libdir"])?;
+    let ghc_libdir = PathBuf::from(cmd(&compiler_id, &["--print-libdir"])?);
 
     let lib_name = |name: &str| {
         if statically {
@@ -123,16 +124,17 @@ fn link_haskell_project<P: AsRef<Path>>(project_path: P, statically: bool) -> Re
     };
 
     for dependency in plan.dependencies {
-        let dependency_dir = format!("{ghc_libdir}/{}", dependency.id);
+        let dependency_dir = ghc_libdir.join(&dependency.id);
+        let dependency_dir_str = dependency_dir.to_str().expect("dependency_dir to be a valid path");
 
-        println!("cargo:rustc-link-search=native={dependency_dir}");
+        println!("cargo:rustc-link-search=native={dependency_dir_str}");
         println!(
             "cargo:rustc-link-lib={link_type}={}",
             lib_name(&dependency.id)
         );
 
         if !statically {
-            println!("cargo:rustc-link-arg=-Wl,-rpath,{dependency_dir}");
+            println!("cargo:rustc-link-arg=-Wl,-rpath,{dependency_dir_str}");
         }
     }
 
@@ -156,6 +158,27 @@ fn link_haskell_project<P: AsRef<Path>>(project_path: P, statically: bool) -> Re
     if !statically {
         println!("cargo:rustc-link-arg=-Wl,-rpath,{build_directory_str}");
     }
+
+    // Generate bindings
+    let rts_include = ghc_libdir.join("rts/include");
+    let rts_include_str = rts_include.to_str().unwrap();
+
+    let header_path = build_directory.join("Safe_stub.h");
+    let header_path_str = header_path.to_str().unwrap();
+
+    let bindings = bindgen::Builder::default()
+        .clang_arg(format!("-I{rts_include_str}"))
+        .header(header_path_str)
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .blocklist_function("^hs_")
+        .generate()
+        .expect("Unable to generate bindings");
+
+    // Write the bindings to the $OUT_DIR/bindings.rs file.
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    bindings
+        .write_to_file(out_path.join("bindings.rs"))
+        .expect("Couldn't write bindings!");
 
     Ok(())
 }
